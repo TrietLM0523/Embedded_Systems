@@ -81,18 +81,30 @@ class PicoSerialInterface:
                     self.on_error(f"Read error: {str(e)}")
     
     def _process_frame(self, frame: bytes):
-        """Xử lý frame dữ liệu từ Pico"""
+        """Xử lý frame dữ liệu từ Pico và giải nén bits"""
         try:
-            # Format frame: [num_channels (1 byte)] [channel_data...] 
+            # Format frame: [num_channels (1 byte)] [packed_data...] 
             if len(frame) < 1:
                 return
             
             num_channels = frame[0]
             data = []
             
-            # Mỗi kênh là 1 byte (0 hoặc 1)
-            for i in range(1, min(len(frame), num_channels + 1)):
-                data.append(frame[i])
+            # Tính số byte dữ liệu cần thiết (bit-packed)
+            num_bytes = (num_channels + 7) // 8
+            
+            if len(frame) < 1 + num_bytes:
+                # Không đủ dữ liệu cho số kênh khai báo
+                return
+                
+            # Giải nén từng bit thành một giá trị trong list data
+            for byte_idx in range(num_bytes):
+                byte_val = frame[1 + byte_idx]
+                for bit_idx in range(8):
+                    channel_idx = byte_idx * 8 + bit_idx
+                    if channel_idx < num_channels:
+                        bit_val = (byte_val >> bit_idx) & 0x01
+                        data.append(bit_val)
             
             if self.on_data_received:
                 self.on_data_received(data)
@@ -134,19 +146,14 @@ class MockPicoInterface(PicoSerialInterface):
     def __init__(self):
         super().__init__("MOCK", 115200)
         self.mock_thread = None
+        self.num_channels = 8
     
     def connect(self) -> bool:
         """Mock connection"""
-        import time
-        import random
-        
         self.is_connected = True
         self.stop_event.clear()
         
-        # Sinh dữ liệu giả
-        self.mock_thread = threading.Thread(target=self._mock_data_thread, daemon=True)
-        self.mock_thread.start()
-        
+        # Không start thread ở đây nữa, start ở start_capture
         print("Connected to MOCK Pico")
         return True
     
@@ -156,37 +163,38 @@ class MockPicoInterface(PicoSerialInterface):
         self.is_connected = False
         if self.mock_thread:
             self.mock_thread.join(timeout=2)
-    
-    def _mock_data_thread(self):
-        """Sinh dữ liệu giả để test"""
-        import time
-        import random
-        import numpy as np
+            self.mock_thread = None
+            
+    def start_capture(self, num_channels: int):
+        """Bắt đầu mock capture"""
+        self.num_channels = num_channels
+        self.stop_event.clear()
         
-        counter = 0
+        if not self.mock_thread or not self.mock_thread.is_alive():
+            self.mock_thread = threading.Thread(target=self._mock_data_thread, daemon=True)
+            self.mock_thread.start()
+        
+        print(f"Mock capture started with {num_channels} channels")
+    
+    def stop_capture(self):
+        """Dừng mock capture"""
+        self.stop_event.set()
+        if self.mock_thread:
+            self.mock_thread.join(timeout=2)
+            self.mock_thread = None
+        print("Mock capture stopped")
+
+    def _mock_data_thread(self):
+        """Sinh dữ liệu giả (UART, I2C, SPI) để test"""
+        import time
+        from protocol_simulator import MockProtocolStream
+        
+        stream = MockProtocolStream()
+        
         while not self.stop_event.is_set():
             time.sleep(0.01)  # 100 Hz sampling
             
-            # Tạo pattern cho 8 kênh
-            data = []
-            # CH0: Sóng vuông nhanh
-            data.append(1 if (counter % 4) < 2 else 0)
-            # CH1: Sóng vuông chậm
-            data.append(1 if (counter % 10) < 5 else 0)
-            # CH2: Random
-            data.append(random.randint(0, 1))
-            # CH3: Counter bit 0
-            data.append(counter % 2)
-            # CH4: Counter bit 1
-            data.append((counter // 2) % 2)
-            # CH5: Counter bit 2
-            data.append((counter // 4) % 2)
-            # CH6: Một số xung thỉnh thoảng
-            data.append(1 if (counter % 50) == 0 else 0)
-            # CH7: Luôn 0 hoặc 1 (test tĩnh)
-            data.append(0)
+            data = stream.get_next_sample(self.num_channels)
             
             if self.on_data_received:
                 self.on_data_received(data)
-            
-            counter += 1

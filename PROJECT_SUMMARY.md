@@ -154,7 +154,8 @@ python build_exe.py
 - [x] Protocol decode: UART, I2C, SPI
 - [x] Signal analysis: Frequency, Duty cycle
 - [x] Export: CSV, JSON
-- [x] Mock device for testing
+- [x] Mock device for testing (with UART/I2C/SPI simulation)
+- [x] Decoded Data Panel for protocol messages
 - [x] Real-time statistics panel
 - [x] Multi-threading for serial I/O
 - [x] Ring buffer optimization

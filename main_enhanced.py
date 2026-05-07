@@ -33,7 +33,7 @@ class ConnectionDialog(QtWidgets.QDialog):
         # Baud rate selection
         layout.addWidget(QtWidgets.QLabel("Baud Rate:"))
         self.combo_baud = QtWidgets.QComboBox()
-        self.combo_baud.addItems(["115200", "230400", "460800", "921600"])
+        self.combo_baud.addItems(["9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"])
         self.combo_baud.setCurrentText("115200")
         layout.addWidget(self.combo_baud)
         
@@ -198,6 +198,26 @@ class StatsPanel(QtWidgets.QDockWidget):
         self.stats_layout.addStretch()
 
 
+class DecodedPanel(QtWidgets.QDockWidget):
+    """Panel hiển thị dữ liệu đã giải mã"""
+    
+    def __init__(self, parent=None):
+        super().__init__("Decoded Data", parent)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        self.text_edit = QtWidgets.QTextEdit()
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setFont(QtGui.QFont("Courier New", 10))
+        self.setWidget(self.text_edit)
+    
+    def clear(self):
+        self.text_edit.clear()
+    
+    def append_message(self, timestamp: float, protocol: str, message: str):
+        self.text_edit.append(f"[{timestamp:7.4f}] {protocol:5}: {message}")
+
+
 class LogicAnalyzerApp(QtWidgets.QMainWindow):
     """Ứng dụng Logic Analyzer chính"""
     
@@ -285,6 +305,9 @@ class LogicAnalyzerApp(QtWidgets.QMainWindow):
         
         self.stats_panel = StatsPanel()
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.stats_panel)
+        
+        self.decoded_panel = DecodedPanel()
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.decoded_panel)
         
         # Update timer cho stats
         self.stats_timer = QtCore.QTimer()
@@ -409,6 +432,65 @@ class LogicAnalyzerApp(QtWidgets.QMainWindow):
             self.la_canvas.stop_update()
             self.pico_interface.stop_capture()
             self.status_bar.showMessage("Stopped.")
+            
+            # Giải mã sau khi dừng
+            self.perform_decoding()
+    
+    def perform_decoding(self):
+        """Thực hiện giải mã giao thức trên dữ liệu đã capture"""
+        if not self.la_core:
+            return
+            
+        protocol = self.settings_panel.combo_protocol.currentText()
+        if protocol == "None":
+            return
+            
+        self.decoded_panel.clear()
+        self.decoded_panel.append_message(0, "SYSTEM", f"Starting {protocol} decode...")
+        
+        # Lấy toàn bộ dữ liệu hiện có
+        events = []
+        count = min(self.la_core.total_samples, self.la_core.buffer_size)
+        
+        try:
+            actual_sample_rate = self.la_core.sample_rate
+            if protocol == "UART":
+                baud = self.settings_panel.spin_uart_baud.value()
+                # Mock device runs at 100Hz and baud 10
+                if isinstance(self.pico_interface, MockPicoInterface):
+                    baud = 10 
+                    actual_sample_rate = 100
+                    
+                decoder = UARTDecoder(baudrate=baud, sample_rate=actual_sample_rate)
+                times, values = self.la_core.get_channel_data(0, count) # CH0: TX
+                if len(values) > 0:
+                    events = decoder.decode(values.tolist(), [], times.tolist())
+                    
+            elif protocol == "I2C":
+                decoder = I2CDecoder()
+                t, scl = self.la_core.get_channel_data(1, count) # CH1: SCL
+                _, sda = self.la_core.get_channel_data(2, count) # CH2: SDA
+                if len(scl) > 0:
+                    events = decoder.decode(sda.tolist(), scl.tolist(), t.tolist())
+                    
+            elif protocol == "SPI":
+                decoder = SPIDecoder()
+                t, cs = self.la_core.get_channel_data(3, count)  # CH3: CS
+                _, sck = self.la_core.get_channel_data(4, count) # CH4: SCK
+                _, mosi = self.la_core.get_channel_data(5, count)# CH5: MOSI
+                if len(sck) > 0:
+                    events = decoder.decode(sck.tolist(), mosi.tolist(), [0]*len(t), cs.tolist(), t.tolist())
+            
+            if not events:
+                self.decoded_panel.append_message(0, "SYSTEM", "No events found.")
+            else:
+                for e in events:
+                    self.decoded_panel.append_message(e.timestamp, e.protocol, e.data)
+                self.decoded_panel.append_message(0, "SYSTEM", f"Done. Found {len(events)} events.")
+                
+        except Exception as e:
+            self.decoded_panel.append_message(0, "ERROR", str(e))
+            print(f"Decode error: {e}")
     
     def clear_data(self):
         """Xóa dữ liệu"""
@@ -425,7 +507,7 @@ class LogicAnalyzerApp(QtWidgets.QMainWindow):
         stats = {}
         analyzer = SignalAnalyzer()
         
-        for ch in range(min(4, self.la_core.num_channels)):  # Show first 4 channels
+        for ch in range(self.la_core.num_channels):  # Show all channels
             _, values = self.la_core.get_channel_data(ch, 1000)
             
             if len(values) > 0:

@@ -145,7 +145,7 @@ class LACanvas(QtWidgets.QWidget):
         self.update_timer = QtCore.QTimer()
         self.update_timer.timeout.connect(self.update_plot)
         
-        self.num_displayed_channels = min(4, la_core.num_channels)  # Hiển thị max 4 kênh mặc định
+        self.num_displayed_channels = la_core.num_channels  # Hiển thị tất cả các kênh mặc định
         self.curves = []
         self.setup_plots()
         

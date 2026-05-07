@@ -22,61 +22,54 @@ class ProtocolEvent:
 class UARTDecoder:
     """Giải mã UART từ 2 kênh RX/TX"""
     
-    def __init__(self, baudrate: int = 9600, data_bits: int = 8, stop_bits: int = 1):
+    def __init__(self, baudrate: int = 9600, sample_rate: float = 100):
         self.baudrate = baudrate
-        self.bit_duration = 1.0 / baudrate
-        self.data_bits = data_bits
-        self.stop_bits = stop_bits
-        self.events: List[ProtocolEvent] = []
+        self.sample_rate = sample_rate
+        self.samples_per_bit = sample_rate / baudrate
+        self.data_bits = 8
     
     def decode(self, tx_data: List[int], rx_data: List[int], timestamps: List[float]) -> List[ProtocolEvent]:
-        """
-        Decode UART từ dữ liệu TX/RX
-        """
         events = []
-        
-        # Decode TX line
         if tx_data:
             events.extend(self._decode_line(tx_data, timestamps, 'TX'))
-        
-        # Decode RX line
         if rx_data:
             events.extend(self._decode_line(rx_data, timestamps, 'RX'))
-        
         return sorted(events, key=lambda e: e.timestamp)
     
     def _decode_line(self, line: List[int], timestamps: List[float], label: str) -> List[ProtocolEvent]:
-        """Decode một line UART"""
         events = []
         i = 0
-        
         while i < len(line) - 1:
-            # Tìm start bit (0 -> 1)
+            # Tìm start bit (1 -> 0)
             if line[i] == 1 and line[i + 1] == 0:
-                # Đây là start bit
+                start_idx = i + 1
                 byte_data = 0
-                bit_idx = 0
-                idx = i + 2
+                bit_samples = self.samples_per_bit
                 
-                # Đọc data bits
-                while bit_idx < self.data_bits and idx < len(line):
-                    byte_data |= (line[idx] << bit_idx)
-                    bit_idx += 1
-                    idx += 1
+                success = True
+                for bit_idx in range(8):
+                    # Lấy mẫu ở giữa bit dữ liệu thứ bit_idx
+                    # Start bit kéo dài 1 bit_samples. Bit 0 bắt đầu từ start_idx + bit_samples.
+                    # Điểm giữa của bit_idx là: start_idx + (bit_idx + 1.5) * bit_samples
+                    sample_pos = int(start_idx + (bit_idx + 1.5) * bit_samples)
+                    if sample_pos < len(line):
+                        bit_val = line[sample_pos]
+                        byte_data |= (bit_val << bit_idx)
+                    else:
+                        success = False
+                        break
                 
-                if bit_idx == self.data_bits:
-                    char = chr(byte_data) if 32 <= byte_data < 127 else f"0x{byte_data:02X}"
+                if success:
+                    char = chr(byte_data) if 32 <= byte_data < 127 else f"\\x{byte_data:02X}"
                     events.append(ProtocolEvent(
-                        timestamp=timestamps[i] if i < len(timestamps) else i * self.bit_duration,
+                        timestamp=timestamps[start_idx],
                         protocol="UART",
                         data=f"{label}: {char}",
                         details={"byte": byte_data, "line": label}
                     ))
-                    i = idx
+                    i = int(start_idx + bit_samples * 10) 
                     continue
-            
             i += 1
-        
         return events
 
 
@@ -84,81 +77,106 @@ class I2CDecoder:
     """Giải mã I2C từ 2 kênh SDA/SCL"""
     
     def decode(self, sda: List[int], scl: List[int], timestamps: List[float]) -> List[ProtocolEvent]:
-        """
-        Decode I2C từ dữ liệu SDA/SCL
-        """
         events = []
-        i = 0
+        i = 1
         
         while i < len(scl) - 1:
-            # Tìm START condition: SDA = 1->0 khi SCL = 1
-            if sda[i] == 1 and sda[i + 1] == 0 and scl[i] == 1:
-                events.append(ProtocolEvent(
-                    timestamp=timestamps[i] if i < len(timestamps) else i * 0.001,
-                    protocol="I2C",
-                    data="START",
-                    details={"type": "START"}
-                ))
-            
-            # Tìm STOP condition: SDA = 0->1 khi SCL = 1
-            elif sda[i] == 0 and sda[i + 1] == 1 and scl[i] == 1:
-                events.append(ProtocolEvent(
-                    timestamp=timestamps[i] if i < len(timestamps) else i * 0.001,
-                    protocol="I2C",
-                    data="STOP",
-                    details={"type": "STOP"}
-                ))
-            
+            # START condition: SDA 1->0 khi SCL 1
+            if scl[i] == 1 and sda[i-1] == 1 and sda[i] == 0:
+                events.append(ProtocolEvent(timestamps[i], "I2C", "START"))
+                
+                idx = i + 1
+                while idx < len(scl) - 1:
+                    # Đọc 8 bit dữ liệu
+                    byte_val = 0
+                    bits_read = 0
+                    
+                    while bits_read < 8 and idx < len(scl):
+                        # Cạnh lên của SCL: mẫu dữ liệu
+                        if scl[idx-1] == 0 and scl[idx] == 1:
+                            byte_val = (byte_val << 1) | sda[idx]
+                            bits_read += 1
+                        
+                        # Kiểm tra STOP trong khi đang chờ clock (không chuẩn nhưng hay gặp)
+                        if scl[idx] == 1 and sda[idx-1] == 0 and sda[idx] == 1:
+                             events.append(ProtocolEvent(timestamps[idx], "I2C", "STOP"))
+                             i = idx
+                             return events # Kết thúc transaction
+                        
+                        idx += 1
+                    
+                    if bits_read == 8:
+                        # Đọc bit ACK/NACK (cạnh lên tiếp theo của SCL)
+                        # Trước tiên phải vượt qua cạnh lên cũ nếu có
+                        idx += 1
+                        while idx < len(scl) and not (scl[idx-1] == 0 and scl[idx] == 1):
+                            idx += 1
+                        
+                        if idx < len(sda):
+                            ack = "ACK" if sda[idx] == 0 else "NACK"
+                            char = chr(byte_val) if 32 <= byte_val < 127 else f"0x{byte_val:02X}"
+                            events.append(ProtocolEvent(timestamps[idx], "I2C", f"DATA: {char} ({ack})"))
+                        
+                        # Quan trọng: Vượt qua cạnh ACK để không bị nhầm là bit đầu của byte sau
+                        idx += 1
+                        
+                    # Sau ACK, kiểm tra xem có STOP không trước khi sang byte tiếp theo
+                    # STOP: SDA 0->1 khi SCL 1
+                    found_stop = False
+                    stop_check_limit = idx + 20 # Kiểm tra một khoảng ngắn sau ACK
+                    t_idx = idx + 1
+                    while t_idx < len(scl) and t_idx < stop_check_limit:
+                        if scl[t_idx] == 1 and sda[t_idx-1] == 0 and sda[t_idx] == 1:
+                            events.append(ProtocolEvent(timestamps[t_idx], "I2C", "STOP"))
+                            idx = t_idx
+                            found_stop = True
+                            break
+                        # Nếu thấy SCL xuống thấp, nghĩa là đang có byte tiếp theo
+                        if scl[t_idx] == 0:
+                            break
+                        t_idx += 1
+                    
+                    if found_stop:
+                        break
+                i = idx
             i += 1
-        
         return events
 
 
 class SPIDecoder:
     """Giải mã SPI từ 3+ kênh CLK/MOSI/MISO/CS"""
     
-    def __init__(self, cpol: int = 0, cpha: int = 0, bits_per_frame: int = 8):
-        self.cpol = cpol  # Clock polarity
-        self.cpha = cpha  # Clock phase
-        self.bits_per_frame = bits_per_frame
-    
     def decode(self, clk: List[int], mosi: List[int], miso: List[int], 
                cs: List[int], timestamps: List[float]) -> List[ProtocolEvent]:
-        """
-        Decode SPI từ dữ liệu CLK/MOSI/MISO/CS
-        """
         events = []
-        
-        # Tìm CS active (thường là 0)
         in_transaction = False
         byte_mosi = 0
-        byte_miso = 0
         bit_count = 0
         
         for i in range(1, len(clk)):
-            # Detect CS edge
-            if cs[i - 1] == 1 and cs[i] == 0:
+            # CS Falling (Active)
+            if cs[i-1] == 1 and cs[i] == 0:
                 in_transaction = True
                 byte_mosi = 0
-                byte_miso = 0
                 bit_count = 0
-            elif cs[i - 1] == 0 and cs[i] == 1:
-                in_transaction = False
-                if bit_count > 0:
-                    events.append(ProtocolEvent(
-                        timestamp=timestamps[i - 1] if i - 1 < len(timestamps) else i * 0.001,
-                        protocol="SPI",
-                        data=f"MOSI: 0x{byte_mosi:02X}, MISO: 0x{byte_miso:02X}",
-                        details={"mosi": byte_mosi, "miso": byte_miso}
-                    ))
+                events.append(ProtocolEvent(timestamps[i], "SPI", "CS ACTIVE"))
             
-            # Detect clock edge (tùy CPOL/CPHA)
+            # CS Rising (Idle)
+            elif cs[i-1] == 0 and cs[i] == 1:
+                in_transaction = False
+                events.append(ProtocolEvent(timestamps[i], "SPI", "CS IDLE"))
+            
             if in_transaction:
-                if (self.cpha == 0 and clk[i - 1] == 0 and clk[i] == 1) or \
-                   (self.cpha == 1 and clk[i - 1] == 1 and clk[i] == 0):
+                # Rising edge of Clock
+                if clk[i-1] == 0 and clk[i] == 1:
                     byte_mosi = (byte_mosi << 1) | mosi[i]
-                    byte_miso = (byte_miso << 1) | miso[i]
                     bit_count += 1
+                    
+                    if bit_count == 8:
+                        char = chr(byte_mosi) if 32 <= byte_mosi < 127 else f"0x{byte_mosi:02X}"
+                        events.append(ProtocolEvent(timestamps[i], "SPI", f"MOSI: {char}"))
+                        byte_mosi = 0
+                        bit_count = 0
         
         return events
 
