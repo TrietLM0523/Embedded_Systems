@@ -1,0 +1,6 @@
+# Bỏ qua các môi trường ảo
+conda_env/
+la_env/
+
+# Bỏ qua các file rác của Python
+__pycache__/
