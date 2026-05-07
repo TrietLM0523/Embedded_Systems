@@ -2,7 +2,7 @@
 
 ## 📋 Tổng quan
 
-Đây là một ứng dụng giao diện **Logic Analyzer** được xây dựng bằng **PyQt6 + pyqtgraph**, hỗ trợ:
+Đây là một ứng dụng giao diện **Logic Analyzer** được xây dựng bằng **PyQt5 + pyqtgraph**, hỗ trợ:
 - ✅ Kết nối với Raspberry Pi Pico qua USB Serial
 - ✅ Hiển thị tối đa 16 kênh logic
 - ✅ Trigger cấu hình (Rising/Falling edge)
@@ -276,9 +276,9 @@ int main() {
 # Cài driver CH340/FTDI nếu cần
 ```
 
-### Lỗi PyQt6
+### Lỗi PyQt5
 ```bash
-pip install --upgrade PyQt6 pyqtgraph
+pip install --upgrade PyQt5 pyqtgraph
 ```
 
 ### Lỗi khi build exe
@@ -316,7 +316,7 @@ pyinstaller main_enhanced.py --debug=all
 
 ## 📚 Tham khảo
 
-- **PyQt6 Docs**: https://www.riverbankcomputing.com/static/Docs/PyQt6/
+- **PyQt5 Docs**: https://www.riverbankcomputing.com/static/Docs/PyQt5/
 - **pyqtgraph**: http://www.pyqtgraph.org/
 - **Raspberry Pi Pico**: https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html
 - **PyInstaller**: https://pyinstaller.org/

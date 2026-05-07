@@ -24,7 +24,7 @@ Xây dựng một ứng dụng giao diện (GUI) để:
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `main_enhanced.py` | GUI chính (PyQt6) | ✅ |
+| `main_enhanced.py` | GUI chính (PyQt5) | ✅ |
 | `la_core_enhanced.py` | Lõi LA & canvas | ✅ |
 | `serial_interface.py` | Giao tiếp Pico | ✅ |
 | `protocol_decoder.py` | Giải mã UART/I2C/SPI | ✅ |
@@ -97,7 +97,7 @@ python build_exe.py
 ```
 ┌─────────────────────────────────────────────────────┐
 │              GUI Application                        │
-│         (PyQt6 + pyqtgraph)                        │
+│         (PyQt5 + pyqtgraph)                        │
 │  ┌─────────────┐  ┌─────────┐  ┌──────────────┐   │
 │  │  Main UI    │  │ Settings│  │ Statistics   │   │
 │  │ + Toolbar   │  │ Panel   │  │ Panel        │   │
@@ -210,7 +210,7 @@ python build_exe.py
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
-| GUI | PyQt6 | 6.11.0 |
+| GUI | PyQt5 | 5.15.11 |
 | Plotting | pyqtgraph | 0.14.0 |
 | Data | NumPy | 2.4.4 |
 | Serial | pyserial | 3.5 |
@@ -293,7 +293,7 @@ python main_enhanced.py
 | Issue | Solution |
 |-------|----------|
 | COM port not found | Check Device Manager, install drivers |
-| PyQt6 import error | `pip install --upgrade PyQt6` |
+| PyQt5 import error | `pip install --upgrade PyQt5` |
 | Build fails | `pip install pyinstaller --upgrade` |
 | Slow performance | Reduce sample rate or buffer size |
 | Crash on connect | Check serial port permissions |
@@ -305,7 +305,7 @@ python main_enhanced.py
 | Week | Phase | Tasks |
 |------|-------|-------|
 | 1 | Planning | Requirements, architecture design |
-| 2 | GUI Dev | PyQt6 framework, main window |
+| 2 | GUI Dev | PyQt5 framework, main window |
 | 3 | Serial I/O | Pico communication, data parsing |
 | 4 | Features | Protocol decode, analysis, export |
 | 5 | Testing | Unit tests, integration, optimization |
@@ -335,7 +335,7 @@ python main_enhanced.py
 By completing this project, you will learn:
 
 ✅ **GUI Development**
-- PyQt6 framework architecture
+- PyQt5 framework architecture
 - Model-View pattern
 - Real-time data visualization
 - Multi-threading for responsive UI
@@ -367,7 +367,7 @@ By completing this project, you will learn:
 ## 📚 References
 
 ### Official Documentation
-- [PyQt6 Docs](https://doc.qt.io/qt-6/)
+- [PyQt5 Docs](https://doc.qt.io/qt-5/)
 - [pyqtgraph](http://www.pyqtgraph.org/)
 - [Raspberry Pi Pico](https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html)
 - [MicroPython](https://micropython.org/)
@@ -386,7 +386,7 @@ By completing this project, you will learn:
 
 | Role | Responsibility |
 |------|-----------------|
-| GUI Lead | Main UI, PyQt6, plotting |
+| GUI Lead | Main UI, PyQt5, plotting |
 | Firmware Dev | Pico MicroPython/C code |
 | Protocol Dev | UART/I2C/SPI decoders |
 | Integration | Serial I/O, testing, build |

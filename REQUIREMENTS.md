@@ -142,7 +142,7 @@ Help:
 ### 3.2 Tương thích
 - **OS**: Windows 7+, Linux (Ubuntu 18.04+), macOS 10.12+
 - **Python**: 3.9, 3.10, 3.11, 3.12
-- **Qt Version**: PyQt6.4+
+- **Qt Version**: PyQt5.15+
 - **Architecture**: x86_64, ARM64
 
 ### 3.3 Hardware
@@ -151,7 +151,7 @@ Help:
 - **COM Port**: Virtual COM port thông qua USB
 
 ### 3.4 Thư viện Python
-- `PyQt6`: GUI framework
+- `PyQt5`: GUI framework
 - `pyqtgraph`: Plotting library
 - `numpy`: Data processing
 - `pyserial`: Serial communication

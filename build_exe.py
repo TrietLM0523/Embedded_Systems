@@ -21,7 +21,7 @@ def build_exe():
         '--icon=icon.ico',  # Icon (optional)
         '--add-data=.:.',
         '--collect-all=pyqtgraph',
-        '--collect-all=PyQt6',
+        '--collect-all=PyQt5',
         '-y',  # Overwrite
     ]
     

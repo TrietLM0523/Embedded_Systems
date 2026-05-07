@@ -30,7 +30,7 @@ pyinstaller main_enhanced.py ^
     --icon=icon.ico ^
     --add-data=".:." ^
     --collect-all=pyqtgraph ^
-    --collect-all=PyQt6 ^
+    --collect-all=PyQt5 ^
     --collect-all=serial ^
     --collect-all=colorama ^
     --hidden-import=pyqtgraph.core ^
@@ -74,11 +74,11 @@ def clean_build_artifacts():
 
 def verify_dependencies():
     """Kiểm tra tất cả dependencies"""
-    required = ['PyQt6', 'pyqtgraph', 'numpy', 'serial', 'colorama']
+    required = ['PyQt5', 'pyqtgraph', 'numpy', 'serial', 'colorama']
     
     print("Verifying dependencies...")
     try:
-        import PyQt6
+        import PyQt5
         import pyqtgraph
         import numpy
         import serial
@@ -114,7 +114,7 @@ def build_exe():
         '--buildpath=build',
         '--specpath=.',
         '--collect-all=pyqtgraph',
-        '--collect-all=PyQt6',
+        '--collect-all=PyQt5',
         '--collect-all=serial',
         '--collect-all=colorama',
         '--hidden-import=pyqtgraph.graphicsItems',
@@ -202,7 +202,7 @@ pyinstaller main_enhanced.py ^
     --windowed ^
     --name=LogicAnalyzer ^
     --collect-all=pyqtgraph ^
-    --collect-all=PyQt6 ^
+    --collect-all=PyQt5 ^
     --collect-all=serial ^
     --clean ^
     -y
@@ -248,7 +248,7 @@ setup(
     executables=[Executable("main_enhanced.py")],
     options={
         "build_exe": {
-            "packages": ["PyQt6", "pyqtgraph", "numpy", "serial"],
+            "packages": ["PyQt5", "pyqtgraph", "numpy", "serial"],
             "include_files": [],
             "bin_path_excludes": [],
         }

@@ -71,7 +71,7 @@ def verify_imports():
     print_header("VERIFYING IMPORTS")
     
     modules = {
-        "PyQt6": "GUI Framework",
+        "PyQt5": "GUI Framework",
         "pyqtgraph": "Plotting Library",
         "numpy": "Numerical Computing",
         "serial": "Serial Communication",
